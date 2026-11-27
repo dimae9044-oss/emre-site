@@ -763,11 +763,14 @@ p { color: var(--muted); }
   transition: 0.2s ease;
 }
 .social-btn:hover { transform: translateY(-1px); text-decoration: none; border-color: rgba(196, 132, 252, 0.7); }
+.social-btn svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.social-btn--tg svg { color: #4fc3f7; }
 .social-btn--tg { border-color: rgba(56, 178, 172, 0.45); background: rgba(56, 178, 172, 0.1); }
 .social-btn--twitch { border-color: rgba(145, 71, 255, 0.45); background: rgba(145, 71, 255, 0.1); }
 .social-btn--google { border-color: rgba(251, 113, 133, 0.4); background: rgba(251, 113, 133, 0.08); }
 .social-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .social-links .social-btn { min-height: 26px; padding: 0 8px; font-size: 11px; }
+.social-links .social-btn svg { width: 13px; height: 13px; }
 .ai-check { margin: 10px 0 0; font-size: 12px; color: #8f86a4; }
 .ai-check.form-error { color: var(--red); }
 

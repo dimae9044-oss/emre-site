@@ -470,20 +470,49 @@ function renderFooter() {
     </footer>`;
 }
 
+const SOCIAL_ICONS = {
+  tg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.7 3.3 2.9 10.6c-.9.4-.9 1.7 0 2l4.7 1.5 1.8 5.5c.2.7 1.1.8 1.6.2l2.6-2.8 4.9 3.6c.6.4 1.4.1 1.6-.6l3.2-15.5c.2-.8-.6-1.5-1.6-1.2ZM8.9 13.9l8.6-5.4-6.9 6.2-.3 3-1.4-3.8Z"/></svg>',
+  twitch: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h17v11l-5 5h-4l-3 3H6v-3H3V6l1-3Zm4 3v9h3v3l2-2h3l3-3V6H8Zm7 2h2v5h-2V8Zm-5 0h2v5h-2V8Z"/></svg>',
+  google: '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5Z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7Z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.7-3.1-11.3-7.6l-6.5 5C9.6 39.6 16.3 44 24 44Z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4 5.6l6.3 5.2C41.4 35.2 44 29.9 44 24c0-1.3-.1-2.4-.4-3.5Z"/></svg>'
+};
+
 function renderSocialLogin(compact = false) {
   const links = [
-    { label: 'Telegram', url: `https://t.me/${TELEGRAM_BOT_USERNAME}`, cls: 'tg' },
-    { label: 'Twitch', url: 'https://www.twitch.tv/login', cls: 'twitch' },
-    { label: 'Google', url: 'https://accounts.google.com/', cls: 'google' }
+    { label: 'Telegram', url: `https://t.me/${TELEGRAM_BOT_USERNAME}`, cls: 'tg', provider: 'telegram' },
+    { label: 'Twitch', url: 'https://www.twitch.tv/login', cls: 'twitch', provider: 'twitch' },
+    { label: 'Google', url: 'https://accounts.google.com/', cls: 'google', provider: 'google' }
   ];
-  const items = links.map((item) => `<a class="social-btn social-btn--${item.cls}" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(item.label)} ↗</a>`).join('');
+  const items = links.map((item) => `
+    <a class="social-btn social-btn--${item.cls}" href="${esc(item.url)}" data-provider="${item.provider}" target="_blank" rel="noopener noreferrer">
+      ${SOCIAL_ICONS[item.cls]}<span>${esc(item.label)}</span>
+    </a>`).join('');
   if (compact) return `<span class="social-links">Вход через: ${items}</span>`;
   return `
     <div class="social-login">
-      <span class="social-login__title">Или открой сервис:</span>
+      <span class="social-login__title">Войти через:</span>
       <div class="social-login__list">${items}</div>
-      <small>Это быстрые ссылки. Вход на сайте остаётся по логину и паролю.</small>
+      <small>Telegram внутри Mini App узнаёт аккаунт сам. Для Twitch и Google откроется сервис — после возврата введи логин и пароль emre.</small>
     </div>`;
+}
+
+function telegramMiniUsername() {
+  try {
+    const user = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    return user && user.username ? '@' + String(user.username).replace(/^@/, '') : '';
+  } catch {
+    return '';
+  }
+}
+
+function openExternal(url) {
+  try {
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(url);
+      return;
+    }
+  } catch { /* обычный браузер */ }
+  const opened = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!opened) window.location.href = url;
 }
 
 function renderBankApps() {
@@ -1377,6 +1406,24 @@ function playError() {
 /* ---------- events ---------- */
 document.addEventListener('click', async (event) => {
   playClick();
+  const social = event.target.closest('.social-btn');
+  if (social) {
+    event.preventDefault();
+    if (social.dataset.provider === 'telegram') {
+      const mini = telegramMiniUsername();
+      const account = mini ? findAccount(mini) : null;
+      if (account) {
+        loginUser(account.username);
+        closeModal();
+        renderApp();
+        toast(`Вы вошли через Telegram как ${normUser(account.username)}`);
+        return;
+      }
+    }
+    openExternal(social.href);
+    toast('Сервис открыт. Вернись и войди по логину и паролю emre.');
+    return;
+  }
   const scrollTarget = event.target.closest('[data-scroll]');
   if (scrollTarget) {
     const node = document.getElementById(scrollTarget.dataset.scroll);
