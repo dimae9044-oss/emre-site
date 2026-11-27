@@ -11,6 +11,9 @@
 
 const enc = new TextEncoder();
 
+// Публичный сайт opens as Mini App; бот доступен всем пользователям Telegram.
+const SITE_URL = 'https://dimae9044-oss.github.io/emre-site/';
+
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data, null, 2), {
     status,
@@ -597,12 +600,12 @@ async function setup(request, env) {
     language_code: 'ru'
   });
   const menu = await tg(env, 'setChatMenuButton', {
-    menu_button: { type: 'web_app', text: 'Открыть AI-приложение', web_app: { url: base + '/app' } }
+    menu_button: { type: 'web_app', text: 'Открыть сайт emre', web_app: { url: SITE_URL } }
   });
   return json({
     ok: webhook.ok && commands.ok && description.ok && menu.ok,
     webhook: base + '/webhook',
-    miniapp: base + '/app',
+    miniapp: SITE_URL,
     results: { webhook, commands, description, menu }
   });
 }
@@ -650,7 +653,7 @@ async function handleUpdate(env, update, origin) {
         title: 'Спросить Емерана',
         description: clip(inline.query || 'Напиши вопрос', 60),
         input_message_content: { message_text: inline.query || 'Привет, Емеран!' },
-        reply_markup: { inline_keyboard: [[{ text: 'Открыть Mini App', web_app: { url: origin + '/app' } }]] }
+        reply_markup: { inline_keyboard: [[{ text: 'Открыть сайт emre', web_app: { url: SITE_URL } }]] }
       }],
       cache_time: 0
     });
@@ -670,7 +673,7 @@ async function handleUpdate(env, update, origin) {
       text: 'Привет! Я Емеран — AI-агент с Mini App 🌟\n\nНажми кнопку ниже, чтобы открыть приложение, или просто напиши мне сообщение.',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🚀 Открыть Mini App', web_app: { url: origin + '/app' } }],
+          [{ text: '🚀 Открыть сайт emre', web_app: { url: SITE_URL } }],
           [{ text: '🌤 Погода', callback_data: 'weather' }, { text: '✨ Умения', callback_data: 'help' }]
         ]
       }
