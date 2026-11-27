@@ -4,6 +4,7 @@ const STORAGE_KEY = 'emreStreams.state.v1';
 const AUTH_KEY = 'emreStreams.auth.v1';
 const USER_KEY = 'emreStreams.user.v1';
 const CURRENT_ADMIN_PASSWORD = '604Ss1480';
+const DEFAULT_USER_PASSWORD = '604Ss1480';
 const AUTHOR_TELEGRAM = '@dimasert56';
 const BANK_APPS = [
   { label: 'Сбер', url: 'https://www.sberbank.ru/' },
@@ -19,6 +20,16 @@ const DAY = 24 * 60 * 60 * 1000;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[char]));
+
+function passHash(value) {
+  let hash = 2166136261;
+  const text = String(value || '');
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
 
 function makeDefaultState() {
   const now = new Date();
@@ -82,8 +93,8 @@ function makeDefaultState() {
       }
     ],
     accounts: [
-      { id: 'acc-nainangel', username: '@nainangel', name: 'Nainangel', channel: '@nainangel', createdAt: new Date(now.getTime() - 20 * DAY).toISOString() },
-      { id: 'acc-dimstream', username: '@dimstream', name: 'DimStream', channel: '@dimstream', createdAt: new Date(now.getTime() - 8 * DAY).toISOString() }
+      { id: 'acc-nainangel', username: '@nainangel', name: 'Nainangel', channel: '@nainangel', passwordHash: passHash(DEFAULT_USER_PASSWORD), createdAt: new Date(now.getTime() - 20 * DAY).toISOString() },
+      { id: 'acc-dimstream', username: '@dimstream', name: 'DimStream', channel: '@dimstream', passwordHash: passHash(DEFAULT_USER_PASSWORD), createdAt: new Date(now.getTime() - 8 * DAY).toISOString() }
     ]
   };
 }
@@ -100,7 +111,8 @@ function mergeState(parsed) {
   if (!settings.channel) settings.channel = def.settings.channel;
   if (!settings.receivingBank) settings.receivingBank = def.settings.receivingBank;
 
-  const accounts = Array.isArray(parsed.accounts) && parsed.accounts.length ? parsed.accounts : def.accounts;
+  const accounts = (Array.isArray(parsed.accounts) && parsed.accounts.length ? parsed.accounts : def.accounts)
+    .map((account) => ({ ...account, passwordHash: account.passwordHash || passHash(DEFAULT_USER_PASSWORD) }));
 
   return {
     settings,
@@ -888,6 +900,10 @@ function openLoginModal(after) {
         <input class="input" id="authLogin" name="username" placeholder="@nainangel" autocomplete="username" required />
         <small>Введи логин, который уже есть в системе.</small>
       </div>
+      <div class="field">
+        <label for="authPassword">Пароль</label>
+        <input class="input" id="authPassword" name="password" type="password" placeholder="••••••" autocomplete="current-password" required />
+      </div>
       <p id="authError" class="form-error hidden"></p>
       <p id="aiLogin" class="ai-check">🤖 ИИ-проверка включена</p>
       <button class="link-btn" type="button" data-action="open-register">Нет аккаунта? Создать</button>`,
@@ -896,6 +912,11 @@ function openLoginModal(after) {
       const account = validUser(raw) ? findAccount(normUser(raw)) : null;
       if (!account) {
         modalError('authError', 'Такого аккаунта не существует');
+        return;
+      }
+      const password = String(formData.get('password') || '');
+      if (passHash(password) !== account.passwordHash) {
+        modalError('authError', 'Неверный пароль');
         return;
       }
       const ai = await aiFormCheck('login', { username: raw }, 'aiLogin');
@@ -930,6 +951,14 @@ function openRegisterModal() {
         <label for="regChannel">Telegram-канал для постов</label>
         <input class="input" id="regChannel" name="channel" placeholder="@nainangel" required />
       </div>
+      <div class="field">
+        <label for="regPassword">Пароль (от 6 символов)</label>
+        <input class="input" id="regPassword" name="password" type="password" minlength="6" placeholder="••••••" autocomplete="new-password" required />
+      </div>
+      <div class="field">
+        <label for="regPassword2">Повтори пароль</label>
+        <input class="input" id="regPassword2" name="password2" type="password" minlength="6" placeholder="••••••" autocomplete="new-password" required />
+      </div>
       <p id="regError" class="form-error hidden"></p>
       <p id="aiReg" class="ai-check">🤖 ИИ-проверка включена</p>`,
     onSubmit: async (formData) => {
@@ -948,6 +977,16 @@ function openRegisterModal() {
         modalError('regError', 'Неверный Telegram-канал');
         return;
       }
+      const password = String(formData.get('password') || '');
+      const password2 = String(formData.get('password2') || '');
+      if (password.length < 6) {
+        modalError('regError', 'Пароль слишком короткий — минимум 6 символов');
+        return;
+      }
+      if (password !== password2) {
+        modalError('regError', 'Пароли не совпадают');
+        return;
+      }
       const name = String(formData.get('name') || '').trim() || username.slice(1);
       const ai = await aiFormCheck('register', { username: raw, name, channel: channelRaw }, 'aiReg');
       if (ai && !ai.ok) {
@@ -959,6 +998,7 @@ function openRegisterModal() {
         username,
         name,
         channel: normUser(channelRaw),
+        passwordHash: passHash(password),
         createdAt: new Date().toISOString()
       });
       saveState();
