@@ -993,6 +993,7 @@ function openPayModal() {
     return;
   }
   const price = fmtMoney(state.settings.price);
+  const aiData = paymentAiData(account);
 
   openModal({
     title: 'Оплата подписки по СБП',
@@ -1018,8 +1019,30 @@ function openPayModal() {
         <li>Выбери банк получателя <b>${esc(state.settings.receivingBank)}</b> (если банк спросит).</li>
         <li>Введи номер <b>${esc(state.settings.sbpPhone)}</b> и сумму <b>${esc(price)}</b>.</li>
         <li>Добавь комментарий <b>${esc(state.settings.paymentComment)}</b> и подтверди перевод.</li>
-        <li>Нажми кнопку ниже — данные аккаунта подставятся автоматически, админ проверит перевод и включит подписку.</li>
+        <li>Проверь данные ниже и нажми кнопку — админ подтвердит перевод и включит подписку.</li>
       </ol>
+      <div class="field">
+        <label for="payName">Имя стримера</label>
+        <input class="input" id="payName" name="name" value="${esc(aiData.name)}" placeholder="Nainangel" required />
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="payTwitch">Twitch-логин</label>
+          <input class="input" id="payTwitch" name="twitch" value="${esc(aiData.twitch)}" placeholder="nainangel" required />
+        </div>
+        <div class="field">
+          <label for="payChannel">Telegram-канал для постов</label>
+          <input class="input" id="payChannel" name="channel" value="${esc(aiData.channel)}" placeholder="@nainangel" required />
+        </div>
+      </div>
+      <div class="field">
+        <label for="payLink">Ссылка на Twitch (необязательно)</label>
+        <input class="input" id="payLink" name="link" value="${esc(aiData.link)}" placeholder="https://www.twitch.tv/nainangel" />
+      </div>
+      <div class="field">
+        <label for="payTx">Последние 4 цифры перевода (если есть)</label>
+        <input class="input" id="payTx" name="transaction" placeholder="Например, 4821" />
+      </div>
       <label class="checkbox-row">
         <input type="checkbox" name="agree" required />
         <span>Я перевёл(а) ${esc(price)} по СБП<small>Подписка станет активной после подтверждения админом</small></span>
@@ -1030,18 +1053,21 @@ function openPayModal() {
         modalError('payError', 'Такого аккаунта не существует');
         return;
       }
-      // Все данные берём из авторизованного аккаунта — пользователь ничего не вводит.
-      const { name, channel, twitch, link } = paymentAiData(account);
-      const transaction = '';
+      // Поля возвращены: значения подставлены из аккаунта, но пользователь может их изменить.
+      const name = String(formData.get('name') || '').trim() || aiData.name;
+      const channel = String(formData.get('channel') || '').trim();
+      const twitch = String(formData.get('twitch') || '').trim().replace(/^@/, '');
+      const link = String(formData.get('link') || '').trim() || (twitch ? `https://www.twitch.tv/${twitch}` : '');
+      const transaction = String(formData.get('transaction') || '').trim();
       if (!/^[A-Za-z0-9_]{4,32}$/.test(twitch)) {
-        modalError('payError', 'Не удалось определить Twitch-логин аккаунта');
+        modalError('payError', 'Неверный Twitch-логин — проверь написание');
         return;
       }
       if (!validUser(channel)) {
         modalError('payError', 'Такого Telegram-канала не существует');
         return;
       }
-      const ai = await aiFormCheck('payment', paymentAiData(account), 'aiPay');
+      const ai = await aiFormCheck('payment', { name, twitch, channel, link, price: state.settings.price, sbpPhone: state.settings.sbpPhone }, 'aiPay');
       if (ai && !ai.ok) {
         modalError('payError', ai.issues.join('; '));
         return;
@@ -1079,7 +1105,7 @@ function openPayModal() {
     }
   });
   // ИИ проверяет данные сразу при открытии окна оплаты — до нажатия кнопки.
-  aiFormCheck('payment', paymentAiData(account), 'aiPay');
+  aiFormCheck('payment', aiData, 'aiPay');
 }
 
 function openStreamerModal(item = null) {
