@@ -854,30 +854,8 @@ function openPayModal() {
         <li>Выбери банк получателя <b>${esc(state.settings.receivingBank)}</b> (если банк спросит).</li>
         <li>Введи номер <b>${esc(state.settings.sbpPhone)}</b> и сумму <b>${esc(price)}</b>.</li>
         <li>Добавь комментарий <b>${esc(state.settings.paymentComment)}</b> и подтверди перевод.</li>
-        <li>Заполни форму ниже — админ проверит перевод и включит подписку.</li>
+        <li>Нажми кнопку ниже — данные аккаунта подставятся автоматически, админ проверит перевод и включит подписку.</li>
       </ol>
-      <div class="field">
-        <label for="payName">Имя стримера</label>
-        <input class="input" id="payName" name="name" value="${esc(account.name || '')}" placeholder="Nainangel" required />
-      </div>
-      <div class="form-grid">
-        <div class="field">
-          <label for="payTwitch">Twitch-логин</label>
-          <input class="input" id="payTwitch" name="twitch" placeholder="nainangel" required />
-        </div>
-        <div class="field">
-          <label for="payChannel">Telegram-канал для постов</label>
-          <input class="input" id="payChannel" name="channel" value="${esc(account.channel || account.username)}" placeholder="@nainangel" required />
-        </div>
-      </div>
-      <div class="field">
-        <label for="payLink">Ссылка на Twitch (необязательно)</label>
-        <input class="input" id="payLink" name="link" placeholder="https://www.twitch.tv/nainangel" />
-      </div>
-      <div class="field">
-        <label for="payTx">Последние 4 цифры перевода (если есть)</label>
-        <input class="input" id="payTx" name="transaction" placeholder="Например, 4821" />
-      </div>
       <label class="checkbox-row">
         <input type="checkbox" name="agree" required />
         <span>Я перевёл(а) ${esc(price)} по СБП<small>Подписка станет активной после подтверждения админом</small></span>
@@ -888,13 +866,17 @@ function openPayModal() {
         modalError('payError', 'Такого аккаунта не существует');
         return;
       }
-      const name = String(formData.get('name') || '').trim() || 'Стример';
-      const twitch = String(formData.get('twitch') || '').trim().replace(/^@/, '');
-      const channel = String(formData.get('channel') || '').trim();
-      const link = String(formData.get('link') || '').trim() || (twitch ? `https://www.twitch.tv/${twitch}` : '');
-      const transaction = String(formData.get('transaction') || '').trim();
+      // Все данные берём из авторизованного аккаунта — пользователь ничего не вводит.
+      const name = String(account.name || '').trim() || currentUser.replace(/^@/, '');
+      const channel = String(account.channel || account.username || currentUser).trim();
+      const twitch = String(account.twitch || name)
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '')
+        .slice(0, 32);
+      const link = twitch ? `https://www.twitch.tv/${twitch}` : '';
+      const transaction = '';
       if (!/^[A-Za-z0-9_]{4,32}$/.test(twitch)) {
-        modalError('payError', 'Неверный Twitch-логин — проверь написание');
+        modalError('payError', 'Не удалось определить Twitch-логин аккаунта');
         return;
       }
       if (!validUser(channel)) {
