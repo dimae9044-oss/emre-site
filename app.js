@@ -6,6 +6,7 @@ const USER_KEY = 'emreStreams.user.v1';
 const CURRENT_ADMIN_PASSWORD = '604Ss1480';
 const DEFAULT_USER_PASSWORD = '604Ss1480';
 const AUTHOR_TELEGRAM = '@dimasert56';
+const TELEGRAM_BOT_USERNAME = 'emeranonsbot';
 const BANK_APPS = [
   { label: 'Сбер', url: 'https://www.sberbank.ru/' },
   { label: 'Т-Банк', url: 'https://www.tbank.ru/' },
@@ -464,8 +465,25 @@ function renderFooter() {
         <span>© ${new Date().getFullYear()} <span class="footer__bot">${esc(state.settings.botName)}</span> · стримы с уведомлениями в Telegram</span>
         <span>Автор: <a href="https://t.me/dimasert56" target="_blank" rel="noopener noreferrer">${esc(AUTHOR_TELEGRAM)}</a> · Telegram</span>
         <span>Сделано для тех, кто не любит пропускать эфиры 💜</span>
+        ${renderSocialLogin(true)}
       </div>
     </footer>`;
+}
+
+function renderSocialLogin(compact = false) {
+  const links = [
+    { label: 'Telegram', url: `https://t.me/${TELEGRAM_BOT_USERNAME}`, cls: 'tg' },
+    { label: 'Twitch', url: 'https://www.twitch.tv/login', cls: 'twitch' },
+    { label: 'Google', url: 'https://accounts.google.com/', cls: 'google' }
+  ];
+  const items = links.map((item) => `<a class="social-btn social-btn--${item.cls}" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">${esc(item.label)} ↗</a>`).join('');
+  if (compact) return `<span class="social-links">Вход через: ${items}</span>`;
+  return `
+    <div class="social-login">
+      <span class="social-login__title">Или открой сервис:</span>
+      <div class="social-login__list">${items}</div>
+      <small>Это быстрые ссылки. Вход на сайте остаётся по логину и паролю.</small>
+    </div>`;
 }
 
 function renderBankApps() {
@@ -906,6 +924,7 @@ function openLoginModal(after) {
       </div>
       <p id="authError" class="form-error hidden"></p>
       <p id="aiLogin" class="ai-check">🤖 ИИ-проверка включена</p>
+      ${renderSocialLogin()}
       <button class="link-btn" type="button" data-action="open-register">Нет аккаунта? Создать</button>`,
     onSubmit: async (formData) => {
       const raw = String(formData.get('username') || '').trim();
@@ -1418,8 +1437,7 @@ document.addEventListener('click', async (event) => {
     }
 
     case 'telegram-remind': {
-      const bot = String(state.settings.botName || '').replace(/^@/, '');
-      window.open(`https://t.me/${bot}`, '_blank', 'noopener,noreferrer');
+      window.open(`https://t.me/${TELEGRAM_BOT_USERNAME}`, '_blank', 'noopener,noreferrer');
       break;
     }
 
