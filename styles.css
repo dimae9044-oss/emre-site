@@ -698,13 +698,13 @@ p { color: var(--muted); }
 /* ---------- floating Telegram orb ---------- */
 .telegram-orb {
   position: fixed;
-  right: 26px;
-  bottom: 24px;
+  right: 24px;
+  bottom: 22px;
   z-index: 90;
   display: grid;
   justify-items: center;
-  gap: 7px;
-  width: 78px;
+  gap: 8px;
+  width: 94px;
   text-decoration: none;
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   -webkit-tap-highlight-color: transparent;
@@ -716,10 +716,10 @@ p { color: var(--muted); }
   position: absolute;
   top: 4px;
   left: 50%;
-  width: 76px;
-  height: 76px;
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(192, 132, 252, 0.6) 0%, rgba(124, 58, 237, 0.28) 52%, transparent 72%);
+  background: radial-gradient(circle, rgba(192, 132, 252, 0.62) 0%, rgba(124, 58, 237, 0.3) 52%, transparent 72%);
   filter: blur(15px);
   transform: translateX(-50%);
   animation: orb-pulse 3.4s ease-in-out infinite;
@@ -728,8 +728,8 @@ p { color: var(--muted); }
 
 .telegram-orb__icon {
   position: relative;
-  width: 60px;
-  height: 60px;
+  width: 74px;
+  height: 74px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -737,9 +737,10 @@ p { color: var(--muted); }
   border: 1px solid rgba(192, 132, 252, 0.5);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.9),
-    0 0 26px rgba(168, 85, 247, 0.45),
-    inset 0 0 20px rgba(168, 85, 247, 0.16);
+    0 0 30px rgba(168, 85, 247, 0.5),
+    inset 0 0 22px rgba(168, 85, 247, 0.18);
   overflow: hidden;
+  animation: orb-spin 9s linear infinite;
 }
 .telegram-orb__icon::before {
   content: "";
@@ -753,14 +754,14 @@ p { color: var(--muted); }
 }
 .telegram-orb__icon svg {
   position: relative;
-  width: 29px;
-  height: 29px;
+  width: 35px;
+  height: 35px;
   fill: #c084fc;
   filter: drop-shadow(0 0 7px rgba(192, 132, 252, 0.85));
   animation: orb-spin 16s linear infinite;
 }
 .telegram-orb__label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #c9b6e8;
@@ -812,11 +813,11 @@ p { color: var(--muted); }
   .price { font-size: 56px; }
   .modal { padding: 20px; }
   .footer__inner { flex-direction: column; align-items: flex-start; }
-  .telegram-orb { right: 16px; bottom: 16px; width: 66px; gap: 6px; }
-  .telegram-orb__icon { width: 52px; height: 52px; }
-  .telegram-orb__icon svg { width: 25px; height: 25px; }
-  .telegram-orb__glow { width: 66px; height: 66px; }
-  .telegram-orb__label { font-size: 9px; }
+  .telegram-orb { right: 14px; bottom: 14px; width: 78px; gap: 6px; }
+  .telegram-orb__icon { width: 62px; height: 62px; }
+  .telegram-orb__icon svg { width: 29px; height: 29px; }
+  .telegram-orb__glow { width: 76px; height: 76px; }
+  .telegram-orb__label { font-size: 10px; }
 }
 
 @media (max-width: 380px) {
