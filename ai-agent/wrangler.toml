@@ -1,0 +1,21 @@
+name = "emeran-ai-agent"
+main = "worker.js"
+compatibility_date = "2026-11-26"
+
+# Необязательно: постоянная память для заметок и истории чата.
+# Создайте пространство имен: npx wrangler kv namespace create AGENT_KV
+# и раскомментируйте блок ниже, подставив свой id.
+# [[kv_namespaces]]
+# binding = "AGENT_KV"
+# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[vars]
+LLM_BASE_URL = "https://text.pollinations.ai/openai"
+LLM_MODEL = "openai"
+ALLOW_DEV = "0"
+
+# Секреты задаются командой:
+# npx wrangler secret put TELEGRAM_BOT_TOKEN
+# npx wrangler secret put SETUP_TOKEN
+# npx wrangler secret put WEBHOOK_SECRET
+# При желании: npx wrangler secret put LLM_API_KEY

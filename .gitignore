@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+*.log
+offset.txt
+bin/
+node_modules/
+app-test.js
+index-test.html
+.DS_Store
+Thumbs.db
