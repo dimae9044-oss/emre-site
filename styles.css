@@ -726,6 +726,22 @@ p { color: var(--muted); }
   cursor: help;
 }
 .ai-badge--warn { border-color: rgba(251, 113, 133, 0.35); background: rgba(251, 113, 133, 0.1); color: #fda4af; }
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(196, 132, 252, 0.3);
+  background: rgba(168, 85, 247, 0.08);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+.sound-toggle:hover { border-color: rgba(196, 132, 252, 0.65); background: rgba(168, 85, 247, 0.18); transform: scale(1.06); }
 .ai-check { margin: 10px 0 0; font-size: 12px; color: #8f86a4; }
 .ai-check.form-error { color: var(--red); }
 
@@ -837,6 +853,7 @@ p { color: var(--muted); }
   .navbar__actions { gap: 6px; }
   .user-chip { padding: 5px 8px; font-size: 11px; }
   .ai-badge { padding: 4px 7px; font-size: 10px; }
+  .sound-toggle { width: 30px; height: 30px; font-size: 13px; }
   .hero { padding: 42px 0 30px; gap: 30px; }
   h1 { font-size: clamp(38px, 11vw, 56px); }
   .section { padding: 54px 0; }

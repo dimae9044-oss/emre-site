@@ -366,6 +366,7 @@ function streamerLink(streamer) {
 
 /* ---------- toast ---------- */
 function toast(message, type = 'ok') {
+  (type === 'err' ? playError : playSuccess)();
   const root = document.getElementById('toastRoot');
   const node = document.createElement('div');
   node.className = `toast toast--${type === 'err' ? 'err' : 'ok'}`;
@@ -430,6 +431,7 @@ function renderNav(admin) {
             <button class="nav-link" type="button" data-scroll="top">Пример поста</button>
           </div>`}
         <div class="navbar__actions">
+          <button class="sound-toggle" type="button" data-action="toggle-sound" title="Звуки интерфейса" aria-label="Звуки интерфейса">${soundOn ? '🔊' : '🔇'}</button>
           <span id="aiBadge" class="ai-badge">🤖 ИИ: проверяю…</span>
           ${currentUser
             ? `<span class="user-chip" title="Вы вошли">@${esc(currentUser.replace(/^@/, ''))}</span>
@@ -1257,8 +1259,65 @@ function exportData() {
   toast('Бэкап скачан');
 }
 
+/* ---------- sounds ---------- */
+const SOUND_KEY = 'emreStreams.sound.v1';
+let soundOn = true;
+try { soundOn = localStorage.getItem(SOUND_KEY) !== '0'; } catch { /* приватный режим */ }
+let audioCtx = null;
+let lastTypeAt = 0;
+
+function getAudio() {
+  if (!soundOn) return null;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+function beep(freq, duration, gain, type = 'sine', delay = 0, slideTo = 0) {
+  const ctx = getAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const vol = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + duration);
+  vol.gain.setValueAtTime(0.0001, t);
+  vol.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+  vol.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+  osc.connect(vol).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + duration + 0.02);
+}
+
+function playClick() {
+  beep(660, 0.045, 0.022, 'triangle');
+  beep(990, 0.035, 0.012, 'sine', 0.025);
+}
+
+function playType() {
+  const now = Date.now();
+  if (now - lastTypeAt < 45) return;
+  lastTypeAt = now;
+  beep(420 + Math.random() * 80, 0.025, 0.012, 'sine');
+}
+
+function playSuccess() {
+  beep(660, 0.08, 0.03, 'sine');
+  beep(880, 0.12, 0.028, 'sine', 0.07);
+}
+
+function playError() {
+  beep(200, 0.14, 0.03, 'sawtooth', 0, 120);
+}
+
 /* ---------- events ---------- */
 document.addEventListener('click', async (event) => {
+  playClick();
   const scrollTarget = event.target.closest('[data-scroll]');
   if (scrollTarget) {
     const node = document.getElementById(scrollTarget.dataset.scroll);
@@ -1278,6 +1337,13 @@ document.addEventListener('click', async (event) => {
   const id = el.dataset.id;
 
   switch (action) {
+    case 'toggle-sound':
+      soundOn = !soundOn;
+      try { localStorage.setItem(SOUND_KEY, soundOn ? '1' : '0'); } catch { /* приватный режим */ }
+      renderApp();
+      if (soundOn) playSuccess();
+      break;
+
     case 'go-admin':
       location.hash = '#admin';
       break;
@@ -1506,6 +1572,13 @@ document.addEventListener('change', async (event) => {
     toast('Не удалось прочитать бэкап: ' + error.message, 'err');
   } finally {
     event.target.value = '';
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  const tag = event.target && event.target.tagName;
+  if ((tag === 'INPUT' || tag === 'TEXTAREA') && (event.key.length === 1 || event.key === 'Backspace')) {
+    playType();
   }
 });
 
