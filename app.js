@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = 'emreStreams.state.v1';
 const AUTH_KEY = 'emreStreams.auth.v1';
+const USER_KEY = 'emreStreams.user.v1';
 const CURRENT_ADMIN_PASSWORD = '604Ss1480';
 const AUTHOR_TELEGRAM = '@dimasert56';
 const BANK_APPS = [
@@ -79,6 +80,10 @@ function makeDefaultState() {
         joinedAt: new Date(now.getTime() - 8 * DAY).toISOString(),
         paidUntil: new Date(now.getTime() + 22 * DAY).toISOString()
       }
+    ],
+    accounts: [
+      { id: 'acc-nainangel', username: '@nainangel', name: 'Nainangel', channel: '@nainangel', createdAt: new Date(now.getTime() - 20 * DAY).toISOString() },
+      { id: 'acc-dimstream', username: '@dimstream', name: 'DimStream', channel: '@dimstream', createdAt: new Date(now.getTime() - 8 * DAY).toISOString() }
     ]
   };
 }
@@ -95,10 +100,13 @@ function mergeState(parsed) {
   if (!settings.channel) settings.channel = def.settings.channel;
   if (!settings.receivingBank) settings.receivingBank = def.settings.receivingBank;
 
+  const accounts = Array.isArray(parsed.accounts) && parsed.accounts.length ? parsed.accounts : def.accounts;
+
   return {
     settings,
     streamers: Array.isArray(parsed.streamers) ? parsed.streamers : def.streamers,
-    subscribers: Array.isArray(parsed.subscribers) ? parsed.subscribers : def.subscribers
+    subscribers: Array.isArray(parsed.subscribers) ? parsed.subscribers : def.subscribers,
+    accounts
   };
 }
 
@@ -116,6 +124,30 @@ let state = loadState();
 let currentView = location.hash === '#admin' ? 'admin' : 'public';
 let adminTab = 'overview';
 let modalSubmit = null;
+
+const normUser = (value) => '@' + String(value || '').trim().replace(/^@+/, '').toLowerCase();
+const validUser = (value) => /^[A-Za-z0-9_]{5,32}$/.test(String(value || '').trim().replace(/^@+/, ''));
+
+function loadCurrentUser() {
+  try { return sessionStorage.getItem(USER_KEY) || ''; } catch { return ''; }
+}
+
+let currentUser = loadCurrentUser();
+
+function findAccount(username) {
+  const needle = normUser(username);
+  return (state.accounts || []).find((a) => normUser(a.username) === needle) || null;
+}
+
+function loginUser(username) {
+  currentUser = normUser(username);
+  sessionStorage.setItem(USER_KEY, currentUser);
+}
+
+function logoutUser() {
+  currentUser = '';
+  sessionStorage.removeItem(USER_KEY);
+}
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -265,6 +297,10 @@ function renderNav(admin) {
             <button class="nav-link" type="button" data-scroll="top">Пример поста</button>
           </div>`}
         <div class="navbar__actions">
+          ${currentUser
+            ? `<span class="user-chip" title="Вы вошли">@${esc(currentUser.replace(/^@/, ''))}</span>
+               <button class="btn btn--ghost btn--sm" type="button" data-action="logout-user">Выйти</button>`
+            : `<button class="btn btn--ghost btn--sm" type="button" data-action="open-login">Войти</button>`}
           ${admin
             ? `<button class="btn btn--ghost btn--sm" type="button" data-action="go-public">На сайт</button>`
             : `<button class="btn btn--ghost btn--sm" type="button" data-action="go-admin">Админ-панель</button>`}
@@ -410,7 +446,6 @@ function renderLogin() {
             </div>
             <button class="btn btn--primary btn--block" type="submit">Войти</button>
           </form>
-          <p class="auth-card__hint">Пароль админки: <b>${CURRENT_ADMIN_PASSWORD}</b></p>
         </div>
       </div>
       ${renderFooter()}
@@ -698,7 +733,102 @@ function renderApp() {
 }
 
 /* ---------- modal forms ---------- */
+function modalError(id, message) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = message;
+    el.classList.remove('hidden');
+  }
+}
+
+function openLoginModal(after) {
+  openModal({
+    title: 'Вход в emre',
+    subtitle: 'Сначала авторизация — потом оплата',
+    submitText: 'Войти',
+    body: `
+      <div class="field">
+        <label for="authLogin">Telegram-логин</label>
+        <input class="input" id="authLogin" name="username" placeholder="@nainangel" autocomplete="username" required />
+        <small>Введи логин, который уже есть в системе.</small>
+      </div>
+      <p id="authError" class="form-error hidden"></p>
+      <button class="link-btn" type="button" data-action="open-register">Нет аккаунта? Создать</button>`,
+    onSubmit: (formData) => {
+      const raw = String(formData.get('username') || '').trim();
+      const account = validUser(raw) ? findAccount(normUser(raw)) : null;
+      if (!account) {
+        modalError('authError', 'Такого аккаунта не существует');
+        return;
+      }
+      loginUser(account.username);
+      closeModal();
+      renderApp();
+      toast(`Вы вошли как ${normUser(account.username)}`);
+      if (after === 'pay') openPayModal();
+    }
+  });
+}
+
+function openRegisterModal() {
+  openModal({
+    title: 'Создать аккаунт',
+    subtitle: 'Привяжи Telegram-логин и канал для постов',
+    submitText: 'Создать и войти',
+    body: `
+      <div class="field">
+        <label for="regLogin">Telegram-логин</label>
+        <input class="input" id="regLogin" name="username" placeholder="@nainangel" required />
+      </div>
+      <div class="field">
+        <label for="regName">Имя стримера</label>
+        <input class="input" id="regName" name="name" placeholder="Nainangel" required />
+      </div>
+      <div class="field">
+        <label for="regChannel">Telegram-канал для постов</label>
+        <input class="input" id="regChannel" name="channel" placeholder="@nainangel" required />
+      </div>
+      <p id="regError" class="form-error hidden"></p>`,
+    onSubmit: (formData) => {
+      const raw = String(formData.get('username') || '').trim();
+      if (!validUser(raw)) {
+        modalError('regError', 'Неверный Telegram-логин');
+        return;
+      }
+      const username = normUser(raw);
+      if (findAccount(username)) {
+        modalError('regError', 'Такой аккаунт уже существует — просто войди');
+        return;
+      }
+      const channelRaw = String(formData.get('channel') || '').trim();
+      if (!validUser(channelRaw)) {
+        modalError('regError', 'Неверный Telegram-канал');
+        return;
+      }
+      const name = String(formData.get('name') || '').trim() || username.slice(1);
+      state.accounts.unshift({
+        id: uid(),
+        username,
+        name,
+        channel: normUser(channelRaw),
+        createdAt: new Date().toISOString()
+      });
+      saveState();
+      loginUser(username);
+      closeModal();
+      renderApp();
+      toast(`Аккаунт ${username} создан`);
+    }
+  });
+}
+
 function openPayModal() {
+  const account = currentUser ? findAccount(currentUser) : null;
+  // Сначала авторизация, потом оплата: без аккаунта платёжную форму не показываем.
+  if (!currentUser || !account) {
+    openLoginModal('pay');
+    return;
+  }
   const price = fmtMoney(state.settings.price);
 
   openModal({
@@ -706,6 +836,11 @@ function openPayModal() {
     subtitle: `${price} в месяц · СБП на ${state.settings.sbpPhone} · ${state.settings.receivingBank}`,
     submitText: 'Я перевёл(а) — отправить на проверку',
     body: `
+      <div class="pay-user">
+        <span class="badge badge--green">АККАУНТ ПРОВЕРЕН</span>
+        <span>@${esc(account.username.replace(/^@/, ''))}</span>
+      </div>
+      <p id="payError" class="form-error hidden"></p>
       <div class="pay-box">
         <div class="pay-box__row"><span>Банк получателя</span><strong>${esc(state.settings.receivingBank)}</strong></div>
         <div class="pay-box__row"><span>Номер для перевода</span><strong>${esc(state.settings.sbpPhone)}</strong></div>
@@ -723,7 +858,7 @@ function openPayModal() {
       </ol>
       <div class="field">
         <label for="payName">Имя стримера</label>
-        <input class="input" id="payName" name="name" placeholder="Nainangel" required />
+        <input class="input" id="payName" name="name" value="${esc(account.name || '')}" placeholder="Nainangel" required />
       </div>
       <div class="form-grid">
         <div class="field">
@@ -732,7 +867,7 @@ function openPayModal() {
         </div>
         <div class="field">
           <label for="payChannel">Telegram-канал для постов</label>
-          <input class="input" id="payChannel" name="channel" placeholder="@nainangel" required />
+          <input class="input" id="payChannel" name="channel" value="${esc(account.channel || account.username)}" placeholder="@nainangel" required />
         </div>
       </div>
       <div class="field">
@@ -748,11 +883,24 @@ function openPayModal() {
         <span>Я перевёл(а) ${esc(price)} по СБП<small>Подписка станет активной после подтверждения админом</small></span>
       </label>`,
     onSubmit: async (formData) => {
+      // Автоматическая проверялка перед отправкой заявки на оплату.
+      if (!findAccount(currentUser)) {
+        modalError('payError', 'Такого аккаунта не существует');
+        return;
+      }
       const name = String(formData.get('name') || '').trim() || 'Стример';
       const twitch = String(formData.get('twitch') || '').trim().replace(/^@/, '');
       const channel = String(formData.get('channel') || '').trim();
       const link = String(formData.get('link') || '').trim() || (twitch ? `https://www.twitch.tv/${twitch}` : '');
       const transaction = String(formData.get('transaction') || '').trim();
+      if (!/^[A-Za-z0-9_]{4,32}$/.test(twitch)) {
+        modalError('payError', 'Неверный Twitch-логин — проверь написание');
+        return;
+      }
+      if (!validUser(channel)) {
+        modalError('payError', 'Такого Telegram-канала не существует');
+        return;
+      }
       const joinedAt = new Date().toISOString();
       const streamerId = uid();
 
@@ -956,6 +1104,20 @@ document.addEventListener('click', async (event) => {
 
     case 'go-public':
       location.hash = '#home';
+      break;
+
+    case 'open-login':
+      openLoginModal();
+      break;
+
+    case 'open-register':
+      openRegisterModal();
+      break;
+
+    case 'logout-user':
+      logoutUser();
+      renderApp();
+      toast('Вы вышли из аккаунта');
       break;
 
     case 'open-pay':
