@@ -712,6 +712,23 @@ p { color: var(--muted); }
 .form-error { margin: 4px 0 0; color: var(--red); font-size: 13px; font-weight: 600; }
 .pay-user { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; font-weight: 700; }
 
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.08);
+  color: #6ee7b7;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: help;
+}
+.ai-badge--warn { border-color: rgba(251, 113, 133, 0.35); background: rgba(251, 113, 133, 0.1); color: #fda4af; }
+.ai-check { margin: 10px 0 0; font-size: 12px; color: #8f86a4; }
+.ai-check.form-error { color: var(--red); }
+
 /* ---------- floating Telegram orb ---------- */
 .telegram-orb {
   position: fixed;
@@ -819,6 +836,7 @@ p { color: var(--muted); }
   .navbar .btn { min-height: 38px; padding: 0 12px; font-size: 12px; }
   .navbar__actions { gap: 6px; }
   .user-chip { padding: 5px 8px; font-size: 11px; }
+  .ai-badge { padding: 4px 7px; font-size: 10px; }
   .hero { padding: 42px 0 30px; gap: 30px; }
   h1 { font-size: clamp(38px, 11vw, 56px); }
   .section { padding: 54px 0; }

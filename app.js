@@ -149,8 +149,100 @@ function logoutUser() {
   sessionStorage.removeItem(USER_KEY);
 }
 
+/* ---------- AI-проверка данных ---------- */
+const AI_URL = 'https://text.pollinations.ai/openai';
+const AI_SYSTEM = 'Ты строгий валидатор демо-сайта emre. Проверяй только формат и согласованность данных: Telegram-логин @name (5-32 буквы/цифры/_), Twitch-логин (4-32), ссылка twitch.tv/<логин>, канал начинается с @, цена — число больше нуля. НЕ проверяй реальное существование аккаунтов в Telegram. Возвращай строго JSON: {"ok":true,"issues":[]} либо {"ok":false,"issues":["причина"]}. Без текста вне JSON.';
+
+async function aiRequest(data) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(AI_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai',
+        messages: [
+          { role: 'system', content: AI_SYSTEM },
+          { role: 'user', content: JSON.stringify(data) }
+        ],
+        stream: false,
+        max_tokens: 200,
+        temperature: 0
+      }),
+      signal: controller.signal
+    });
+    if (!response.ok) return null;
+    const result = await response.json();
+    const content = String(result?.choices?.[0]?.message?.content || '');
+    const match = content.match(/\{[\s\S]*\}/);
+    return match ? JSON.parse(match[0]) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function aiVerdict(result) {
+  if (!result) return null;
+  const issues = Array.isArray(result.issues) ? result.issues.filter(Boolean) : [];
+  return { ok: result.ok !== false && issues.length === 0, issues };
+}
+
+async function aiFormCheck(kind, data, targetId) {
+  const el = document.getElementById(targetId);
+  if (el) el.textContent = '🤖 ИИ: проверяю…';
+  const verdict = aiVerdict(await aiRequest({ kind, ...data }));
+  if (!el) return verdict;
+  if (!verdict) {
+    el.textContent = '🤖 ИИ недоступен — работают локальные проверки';
+    el.classList.remove('form-error');
+    return null;
+  }
+  if (verdict.ok) {
+    el.textContent = '🤖 ИИ: данные корректны';
+    el.classList.remove('form-error');
+  } else {
+    el.textContent = '🤖 ИИ: ' + verdict.issues.join('; ');
+    el.classList.add('form-error');
+  }
+  return verdict;
+}
+
+let aiAuditTimer = null;
+
+async function aiAuditState() {
+  const badge = document.getElementById('aiBadge');
+  if (!badge) return;
+  badge.textContent = '🤖 ИИ: проверяю…';
+  badge.classList.remove('ai-badge--warn');
+  const verdict = aiVerdict(await aiRequest({
+    kind: 'audit',
+    accounts: (state.accounts || []).map((a) => ({ username: a.username, channel: a.channel })),
+    streamers: (state.streamers || []).map((s) => ({ name: s.name, twitch: s.twitch, chatId: s.chatId, status: s.status })),
+    subscribers: (state.subscribers || []).map((s) => ({ telegram: s.telegram, status: s.status })),
+    settings: { botName: state.settings.botName, price: state.settings.price, sbpPhone: state.settings.sbpPhone, receivingBank: state.settings.receivingBank }
+  }));
+  if (!verdict) {
+    badge.textContent = '🤖 ИИ: недоступен';
+    badge.title = 'Локальные проверки активны';
+    return;
+  }
+  if (verdict.ok) {
+    badge.textContent = '🤖 ИИ: всё ок';
+    badge.title = 'Данные сайта согласованы';
+  } else {
+    badge.textContent = `🤖 ИИ: ${verdict.issues.length} замечаний`;
+    badge.title = verdict.issues.join('\n');
+    badge.classList.add('ai-badge--warn');
+  }
+}
+
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  clearTimeout(aiAuditTimer);
+  aiAuditTimer = setTimeout(() => aiAuditState(), 600);
   if (location.protocol === 'http:') {
     fetch('/api/state?token=' + encodeURIComponent(state.settings.adminToken), {
       method: 'POST',
@@ -297,6 +389,7 @@ function renderNav(admin) {
             <button class="nav-link" type="button" data-scroll="top">Пример поста</button>
           </div>`}
         <div class="navbar__actions">
+          <span id="aiBadge" class="ai-badge">🤖 ИИ: проверяю…</span>
           ${currentUser
             ? `<span class="user-chip" title="Вы вошли">@${esc(currentUser.replace(/^@/, ''))}</span>
                <button class="btn btn--ghost btn--sm" type="button" data-action="logout-user">Выйти</button>`
@@ -753,12 +846,18 @@ function openLoginModal(after) {
         <small>Введи логин, который уже есть в системе.</small>
       </div>
       <p id="authError" class="form-error hidden"></p>
+      <p id="aiLogin" class="ai-check">🤖 ИИ-проверка включена</p>
       <button class="link-btn" type="button" data-action="open-register">Нет аккаунта? Создать</button>`,
-    onSubmit: (formData) => {
+    onSubmit: async (formData) => {
       const raw = String(formData.get('username') || '').trim();
       const account = validUser(raw) ? findAccount(normUser(raw)) : null;
       if (!account) {
         modalError('authError', 'Такого аккаунта не существует');
+        return;
+      }
+      const ai = await aiFormCheck('login', { username: raw }, 'aiLogin');
+      if (ai && !ai.ok) {
+        modalError('authError', ai.issues.join('; '));
         return;
       }
       loginUser(account.username);
@@ -788,8 +887,9 @@ function openRegisterModal() {
         <label for="regChannel">Telegram-канал для постов</label>
         <input class="input" id="regChannel" name="channel" placeholder="@nainangel" required />
       </div>
-      <p id="regError" class="form-error hidden"></p>`,
-    onSubmit: (formData) => {
+      <p id="regError" class="form-error hidden"></p>
+      <p id="aiReg" class="ai-check">🤖 ИИ-проверка включена</p>`,
+    onSubmit: async (formData) => {
       const raw = String(formData.get('username') || '').trim();
       if (!validUser(raw)) {
         modalError('regError', 'Неверный Telegram-логин');
@@ -806,6 +906,11 @@ function openRegisterModal() {
         return;
       }
       const name = String(formData.get('name') || '').trim() || username.slice(1);
+      const ai = await aiFormCheck('register', { username: raw, name, channel: channelRaw }, 'aiReg');
+      if (ai && !ai.ok) {
+        modalError('regError', ai.issues.join('; '));
+        return;
+      }
       state.accounts.unshift({
         id: uid(),
         username,
@@ -841,6 +946,7 @@ function openPayModal() {
         <span>@${esc(account.username.replace(/^@/, ''))}</span>
       </div>
       <p id="payError" class="form-error hidden"></p>
+      <p id="aiPay" class="ai-check">🤖 ИИ-проверка включена</p>
       <div class="pay-box">
         <div class="pay-box__row"><span>Банк получателя</span><strong>${esc(state.settings.receivingBank)}</strong></div>
         <div class="pay-box__row"><span>Номер для перевода</span><strong>${esc(state.settings.sbpPhone)}</strong></div>
@@ -881,6 +987,11 @@ function openPayModal() {
       }
       if (!validUser(channel)) {
         modalError('payError', 'Такого Telegram-канала не существует');
+        return;
+      }
+      const ai = await aiFormCheck('payment', { name, twitch, channel, price: state.settings.price, sbpPhone: state.settings.sbpPhone }, 'aiPay');
+      if (ai && !ai.ok) {
+        modalError('payError', ai.issues.join('; '));
         return;
       }
       const joinedAt = new Date().toISOString();
@@ -970,7 +1081,8 @@ function openStreamerModal(item = null) {
           <label for="stPaid">Оплачено до</label>
           <input class="input" id="stPaid" name="paidUntil" type="date" value="${esc(toLocalInput(s.paidUntil).slice(0, 10))}" />
         </div>
-      </div>`,
+      </div>
+      <p id="aiStreamer" class="ai-check">🤖 ИИ-проверка включена</p>`,
     onSubmit: async (formData) => {
       const data = formData;
       const id = String(data.get('id') || '').trim();
@@ -986,6 +1098,12 @@ function openStreamerModal(item = null) {
         paidUntil: data.get('paidUntil') ? new Date(`${data.get('paidUntil')}T23:59:59`).toISOString() : null,
         joinedAt: item ? item.joinedAt : new Date().toISOString()
       };
+
+      const ai = await aiFormCheck('streamer', { name: payload.name, twitch: payload.twitch, chatId: payload.chatId, link: payload.link, status: payload.status }, 'aiStreamer');
+      if (ai && !ai.ok) {
+        toast('ИИ-проверка: ' + ai.issues.join('; '), 'err');
+        return;
+      }
 
       if (id) {
         const index = state.streamers.findIndex((entry) => entry.id === id);
@@ -1334,6 +1452,7 @@ async function bootstrap() {
   renderApp();
   // Первый запуск: сохраняем состояние на сервере, чтобы мониторинг видел стримеров.
   if (location.protocol === 'http:' && !hasRemote) saveState();
+  aiAuditState();
 }
 
 bootstrap();
