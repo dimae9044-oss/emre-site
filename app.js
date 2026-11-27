@@ -119,6 +119,14 @@ let modalSubmit = null;
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (location.protocol === 'http:') {
+    fetch('/api/state?token=' + encodeURIComponent(state.settings.adminToken), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(state),
+      keepalive: true
+    }).catch(() => {});
+  }
 }
 
 function isAuthed() {
@@ -1165,4 +1173,23 @@ window.addEventListener('hashchange', () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-renderApp();
+async function bootstrap() {
+  let hasRemote = false;
+  if (location.protocol === 'http:') {
+    try {
+      const response = await fetch('/api/state', { cache: 'no-store' });
+      if (response.ok) {
+        const remote = await response.json();
+        if (remote && Array.isArray(remote.streamers)) {
+          state = mergeState(remote);
+          hasRemote = true;
+        }
+      }
+    } catch { /* сервер недоступен — работаем из localStorage */ }
+  }
+  renderApp();
+  // Первый запуск: сохраняем состояние на сервере, чтобы мониторинг видел стримеров.
+  if (location.protocol === 'http:' && !hasRemote) saveState();
+}
+
+bootstrap();

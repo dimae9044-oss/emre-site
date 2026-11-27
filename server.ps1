@@ -183,8 +183,59 @@ try {
         continue
       }
 
+      if ($path -eq '/api/state') {
+        $dataDir = Join-Path $root 'data'
+        $stateFile = Join-Path $dataDir 'state.json'
+        if (-not (Test-Path -LiteralPath $dataDir)) { New-Item -ItemType Directory -Force -Path $dataDir | Out-Null }
+
+        if ($context.Request.HttpMethod -eq 'GET') {
+          if (Test-Path -LiteralPath $stateFile) {
+            $raw = [IO.File]::ReadAllText($stateFile, [Text.Encoding]::UTF8)
+            $bytes = [Text.Encoding]::UTF8.GetBytes($raw)
+            $context.Response.StatusCode = 200
+            $context.Response.ContentType = 'application/json; charset=utf-8'
+            $context.Response.ContentLength64 = $bytes.Length
+            $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+          } else {
+            Send-Json $context 200 @{ ok = $true; state = $null }
+          }
+          $context.Response.Close()
+          continue
+        }
+
+        if ($context.Request.HttpMethod -eq 'POST') {
+          if ($context.Request.QueryString['token'] -ne $adminToken) {
+            Send-Text $context 403 'Неверный token'
+            $context.Response.Close()
+            continue
+          }
+          $reader = [IO.StreamReader]::new($context.Request.InputStream, [Text.Encoding]::UTF8)
+          $raw = $reader.ReadToEnd()
+          $reader.Close()
+          try { $null = $raw | ConvertFrom-Json } catch {
+            Send-Json $context 400 @{ error = 'Некорректный JSON' }
+            $context.Response.Close()
+            continue
+          }
+          [IO.File]::WriteAllText($stateFile, $raw, [Text.UTF8Encoding]::new($false))
+          Send-Json $context 200 @{ ok = $true }
+          $context.Response.Close()
+          continue
+        }
+
+        Send-Text $context 405 'GET or POST'
+        $context.Response.Close()
+        continue
+      }
+
       if ($context.Request.HttpMethod -ne 'GET') {
         Send-Text $context 405 'Only GET'
+        $context.Response.Close()
+        continue
+      }
+
+      if ($path -match '^/data(/|$)') {
+        Send-Text $context 403 'Forbidden'
         $context.Response.Close()
         continue
       }

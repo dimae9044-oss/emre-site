@@ -16,6 +16,7 @@ $offset = 0
 if (Test-Path $offsetFile) { $offset = [int64](Get-Content $offsetFile -Raw) }
 
 $system = 'Ты Емеран — дружелюбный AI-агент в Telegram. Отвечай на русском, кратко и по делу. Умеешь объяснять, считать, помогать с идеями. Если не знаешь — честно говори об этом.'
+$siteUrl = 'https://dimae9044-oss.github.io/emre-site/'
 
 function Send-Telegram([string]$method, [hashtable]$payload) {
   $json = ($payload | ConvertTo-Json -Depth 8 -Compress)
@@ -57,10 +58,19 @@ while ($true) {
       $chat = $msg.chat.id
       $text = [string]$msg.text
 
-      if ($text -eq '/start' -or $text -eq '/help') {
+      $keyboard = @{
+        inline_keyboard = @(
+          @(
+            @{ text = 'Открыть сайт emre'; web_app = @{ url = $siteUrl } }
+          )
+        )
+      }
+
+      if ($text -eq '/start' -or $text -eq '/help' -or $text -eq '/app') {
         Send-Telegram 'sendMessage' @{
           chat_id = $chat
-          text = 'Привет! Я Емеран — AI-агент. Сейчас я в локальном режиме: отвечаю на вопросы через нейросеть. Полный режим с Mini App появится после деплоя Cloudflare Worker.'
+          text = 'Привет! Я Емеран 🤖 Сайт emre открывается прямо здесь как Mini App — жми кнопку ниже. Также я отвечаю на вопросы как AI-агент.'
+          reply_markup = $keyboard
         } | Out-Null
         continue
       }

@@ -3,6 +3,7 @@
 !.env.example
 *.log
 offset.txt
+data/
 bin/
 node_modules/
 app-test.js
