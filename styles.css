@@ -1,7 +1,7 @@
 /* emre — black / violet streamer bot website */
 :root {
-  --bg: #07050c;
-  --bg-soft: #0d0916;
+  --bg: #000000;
+  --bg-soft: #050505;
   --panel: rgba(255, 255, 255, 0.045);
   --panel-strong: rgba(255, 255, 255, 0.075);
   --border: rgba(196, 132, 252, 0.18);
@@ -27,7 +27,7 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background: #000;
   color: var(--text);
   font-family: var(--font);
   font-size: 16px;
@@ -695,6 +695,86 @@ p { color: var(--muted); }
 .link-btn { padding: 0; border: 0; background: none; color: var(--violet-light); font-size: 13px; font-weight: 700; }
 .link-btn:hover { text-decoration: underline; }
 
+/* ---------- floating Telegram orb ---------- */
+.telegram-orb {
+  position: fixed;
+  right: 26px;
+  bottom: 24px;
+  z-index: 90;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  width: 78px;
+  text-decoration: none;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+.telegram-orb:hover { transform: translateY(-5px) scale(1.05); }
+.telegram-orb:active { transform: translateY(-1px) scale(0.98); }
+
+.telegram-orb__glow {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(192, 132, 252, 0.6) 0%, rgba(124, 58, 237, 0.28) 52%, transparent 72%);
+  filter: blur(15px);
+  transform: translateX(-50%);
+  animation: orb-pulse 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.telegram-orb__icon {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #000;
+  border: 1px solid rgba(192, 132, 252, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 26px rgba(168, 85, 247, 0.45),
+    inset 0 0 20px rgba(168, 85, 247, 0.16);
+  overflow: hidden;
+}
+.telegram-orb__icon::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 55%, rgba(216, 180, 254, 0.95) 76%, transparent 94%);
+  -webkit-mask: radial-gradient(circle, transparent 60%, #000 64%);
+  mask: radial-gradient(circle, transparent 60%, #000 64%);
+  animation: orb-spin 5.5s linear infinite;
+}
+.telegram-orb__icon svg {
+  position: relative;
+  width: 29px;
+  height: 29px;
+  fill: #c084fc;
+  filter: drop-shadow(0 0 7px rgba(192, 132, 252, 0.85));
+  animation: orb-spin 16s linear infinite;
+}
+.telegram-orb__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #c9b6e8;
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.9);
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.telegram-orb:hover .telegram-orb__label { color: #fff; text-shadow: 0 0 16px rgba(216, 180, 254, 1); }
+
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes orb-pulse {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.95; transform: translateX(-50%) scale(1.13); }
+}
+
 /* ---------- responsive ---------- */
 @media (max-width: 980px) {
   .hero { grid-template-columns: 1fr; padding-top: 52px; }
@@ -732,6 +812,11 @@ p { color: var(--muted); }
   .price { font-size: 56px; }
   .modal { padding: 20px; }
   .footer__inner { flex-direction: column; align-items: flex-start; }
+  .telegram-orb { right: 16px; bottom: 16px; width: 66px; gap: 6px; }
+  .telegram-orb__icon { width: 52px; height: 52px; }
+  .telegram-orb__icon svg { width: 25px; height: 25px; }
+  .telegram-orb__glow { width: 66px; height: 66px; }
+  .telegram-orb__label { font-size: 9px; }
 }
 
 @media (max-width: 380px) {
