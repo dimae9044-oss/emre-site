@@ -184,24 +184,70 @@ async function aiRequest(data) {
   }
 }
 
-function aiVerdict(result) {
+function aiVerdict(result, local = false) {
   if (!result) return null;
   const issues = Array.isArray(result.issues) ? result.issues.filter(Boolean) : [];
-  return { ok: result.ok !== false && issues.length === 0, issues };
+  return { ok: result.ok !== false && issues.length === 0, issues, local };
+}
+
+// Встроенная модель: работает всегда, даже если внешний ИИ недоступен или требует оплату.
+function localAiVerdict(data) {
+  const issues = [];
+  const str = (v) => String(v || '').trim();
+  const userOk = (v) => /^[A-Za-z0-9_]{5,32}$/.test(str(v).replace(/^@+/, ''));
+  const twitchOk = (v) => /^[A-Za-z0-9_]{4,32}$/.test(str(v).replace(/^@+/, '').replace(/^https?:\/\/[^/]+\//, '').replace(/^www\./, ''));
+  const add = (condition, message) => { if (!condition) issues.push(message); };
+
+  if (data.kind === 'login') {
+    add(userOk(data.username), 'неверный Telegram-логин');
+  } else if (data.kind === 'register') {
+    add(userOk(data.username), 'неверный Telegram-логин');
+    add(str(data.name).length >= 2, 'слишком короткое имя');
+    add(userOk(data.channel), 'неверный Telegram-канал');
+  } else if (data.kind === 'payment') {
+    add(str(data.name).length >= 2, 'слишком короткое имя стримера');
+    add(twitchOk(data.twitch), 'неверный Twitch-логин');
+    add(userOk(data.channel), 'неверный Telegram-канал');
+    add(Number(data.price) > 0, 'неверная цена');
+    add(str(data.sbpPhone).replace(/\D/g, '').length >= 10, 'неверный номер СБП');
+  } else if (data.kind === 'streamer') {
+    add(str(data.name).length >= 2, 'слишком короткое имя стримера');
+    add(twitchOk(data.twitch), 'неверный Twitch-логин');
+    add(userOk(data.chatId), 'неверный Telegram-канал');
+    if (str(data.link)) {
+      const login = str(data.twitch).replace(/^@+/, '').toLowerCase();
+      add(str(data.link).toLowerCase().includes('twitch.tv/' + login), 'ссылка не соответствует Twitch-логину');
+    }
+  } else if (data.kind === 'audit') {
+    (data.accounts || []).forEach((a) => {
+      add(userOk(a.username), 'аккаунт ' + str(a.username));
+      add(userOk(a.channel), 'канал ' + str(a.channel));
+    });
+    (data.streamers || []).forEach((s) => {
+      add(str(s.name).length >= 2, 'стример ' + str(s.name));
+      add(twitchOk(s.twitch), 'Twitch ' + str(s.twitch));
+      add(userOk(s.chatId), 'канал стримера ' + str(s.chatId));
+    });
+    (data.subscribers || []).forEach((s) => add(userOk(s.telegram), 'подписчик ' + str(s.telegram)));
+    add(Number(data.settings?.price) > 0, 'неверная цена');
+    add(str(data.settings?.sbpPhone).replace(/\D/g, '').length >= 10, 'неверный номер СБП');
+  }
+  return { ok: issues.length === 0, issues: issues.slice(0, 8) };
+}
+
+async function aiCheck(data) {
+  const remote = await aiRequest(data);
+  return remote ? aiVerdict(remote) : aiVerdict(localAiVerdict(data), true);
 }
 
 async function aiFormCheck(kind, data, targetId) {
   const el = document.getElementById(targetId);
   if (el) el.textContent = '🤖 ИИ: проверяю…';
-  const verdict = aiVerdict(await aiRequest({ kind, ...data }));
+  const verdict = await aiCheck({ kind, ...data });
   if (!el) return verdict;
-  if (!verdict) {
-    el.textContent = '🤖 ИИ недоступен — работают локальные проверки';
-    el.classList.remove('form-error');
-    return null;
-  }
+  const suffix = verdict.local ? ' (локальная модель)' : '';
   if (verdict.ok) {
-    el.textContent = '🤖 ИИ: данные корректны';
+    el.textContent = '🤖 ИИ: данные корректны' + suffix;
     el.classList.remove('form-error');
   } else {
     el.textContent = '🤖 ИИ: ' + verdict.issues.join('; ');
@@ -217,21 +263,16 @@ async function aiAuditState() {
   if (!badge) return;
   badge.textContent = '🤖 ИИ: проверяю…';
   badge.classList.remove('ai-badge--warn');
-  const verdict = aiVerdict(await aiRequest({
+  const verdict = await aiCheck({
     kind: 'audit',
     accounts: (state.accounts || []).map((a) => ({ username: a.username, channel: a.channel })),
     streamers: (state.streamers || []).map((s) => ({ name: s.name, twitch: s.twitch, chatId: s.chatId, status: s.status })),
     subscribers: (state.subscribers || []).map((s) => ({ telegram: s.telegram, status: s.status })),
     settings: { botName: state.settings.botName, price: state.settings.price, sbpPhone: state.settings.sbpPhone, receivingBank: state.settings.receivingBank }
-  }));
-  if (!verdict) {
-    badge.textContent = '🤖 ИИ: недоступен';
-    badge.title = 'Локальные проверки активны';
-    return;
-  }
+  });
   if (verdict.ok) {
     badge.textContent = '🤖 ИИ: всё ок';
-    badge.title = 'Данные сайта согласованы';
+    badge.title = verdict.local ? 'Проверено локальной моделью' : 'Данные сайта согласованы';
   } else {
     badge.textContent = `🤖 ИИ: ${verdict.issues.length} замечаний`;
     badge.title = verdict.issues.join('\n');
@@ -927,6 +968,23 @@ function openRegisterModal() {
   });
 }
 
+function paymentAiData(account) {
+  const name = String(account.name || '').trim() || currentUser.replace(/^@/, '');
+  const channel = String(account.channel || account.username || currentUser).trim();
+  const twitch = String(account.twitch || name)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 32);
+  return {
+    name,
+    twitch,
+    channel,
+    link: twitch ? `https://www.twitch.tv/${twitch}` : '',
+    price: state.settings.price,
+    sbpPhone: state.settings.sbpPhone
+  };
+}
+
 function openPayModal() {
   const account = currentUser ? findAccount(currentUser) : null;
   // Сначала авторизация, потом оплата: без аккаунта платёжную форму не показываем.
@@ -973,13 +1031,7 @@ function openPayModal() {
         return;
       }
       // Все данные берём из авторизованного аккаунта — пользователь ничего не вводит.
-      const name = String(account.name || '').trim() || currentUser.replace(/^@/, '');
-      const channel = String(account.channel || account.username || currentUser).trim();
-      const twitch = String(account.twitch || name)
-        .toLowerCase()
-        .replace(/[^a-z0-9_]/g, '')
-        .slice(0, 32);
-      const link = twitch ? `https://www.twitch.tv/${twitch}` : '';
+      const { name, channel, twitch, link } = paymentAiData(account);
       const transaction = '';
       if (!/^[A-Za-z0-9_]{4,32}$/.test(twitch)) {
         modalError('payError', 'Не удалось определить Twitch-логин аккаунта');
@@ -989,7 +1041,7 @@ function openPayModal() {
         modalError('payError', 'Такого Telegram-канала не существует');
         return;
       }
-      const ai = await aiFormCheck('payment', { name, twitch, channel, price: state.settings.price, sbpPhone: state.settings.sbpPhone }, 'aiPay');
+      const ai = await aiFormCheck('payment', paymentAiData(account), 'aiPay');
       if (ai && !ai.ok) {
         modalError('payError', ai.issues.join('; '));
         return;
@@ -1026,6 +1078,8 @@ function openPayModal() {
       toast(`Заявка для ${name} отправлена. После проверки перевода бот подключится к ${channel}.`);
     }
   });
+  // ИИ проверяет данные сразу при открытии окна оплаты — до нажатия кнопки.
+  aiFormCheck('payment', paymentAiData(account), 'aiPay');
 }
 
 function openStreamerModal(item = null) {
