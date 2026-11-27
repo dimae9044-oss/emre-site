@@ -726,6 +726,18 @@ p { color: var(--muted); }
   cursor: help;
 }
 .ai-badge--warn { border-color: rgba(251, 113, 133, 0.35); background: rgba(251, 113, 133, 0.1); color: #fda4af; }
+.online-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  background: rgba(52, 211, 153, 0.08);
+  color: #6ee7b7;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .sound-toggle {
   display: inline-flex;
   align-items: center;
@@ -882,6 +894,7 @@ p { color: var(--muted); }
   .navbar__actions { gap: 6px; }
   .user-chip { padding: 5px 8px; font-size: 11px; }
   .ai-badge { padding: 4px 7px; font-size: 10px; }
+  .online-badge { padding: 4px 7px; font-size: 10px; }
   .sound-toggle { width: 30px; height: 30px; font-size: 13px; }
   .hero { padding: 42px 0 30px; gap: 30px; }
   h1 { font-size: clamp(38px, 11vw, 56px); }

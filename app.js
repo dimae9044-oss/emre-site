@@ -7,6 +7,8 @@ const CURRENT_ADMIN_PASSWORD = '604Ss1480';
 const DEFAULT_USER_PASSWORD = '604Ss1480';
 const AUTHOR_TELEGRAM = '@dimasert56';
 const TELEGRAM_BOT_USERNAME = 'emeranonsbot';
+const PRESENCE_WORKER_URL = 'https://emre-site.dimae9044-oss.workers.dev/api/presence';
+const PRESENCE_ID_KEY = 'emreStreams.presenceId.v1';
 const BANK_APPS = [
   { label: 'Сбер', url: 'https://www.sberbank.ru/' },
   { label: 'Т-Банк', url: 'https://www.tbank.ru/' },
@@ -146,6 +148,54 @@ function loadCurrentUser() {
 }
 
 let currentUser = loadCurrentUser();
+let presenceInfo = { count: 0, users: [] };
+
+function presenceApi() {
+  return location.protocol === 'http:' ? '/api/presence' : PRESENCE_WORKER_URL;
+}
+
+function presenceId() {
+  try {
+    let id = sessionStorage.getItem(PRESENCE_ID_KEY);
+    if (!id) {
+      id = uid();
+      sessionStorage.setItem(PRESENCE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return uid();
+  }
+}
+
+async function presencePing(leave = false) {
+  const account = currentUser ? findAccount(currentUser) : null;
+  try {
+    await fetch(presenceApi(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: presenceId(),
+        username: currentUser || '',
+        name: account ? account.name : '',
+        leave
+      }),
+      keepalive: true
+    });
+  } catch { /* офлайн — следующий пинг попробует снова */ }
+}
+
+async function presenceRefresh() {
+  const admin = currentView === 'admin' && isAuthed();
+  const url = presenceApi() + (admin ? '?token=' + encodeURIComponent(state.settings.adminToken) : '');
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) return;
+    presenceInfo = await response.json();
+    const badge = document.getElementById('onlineBadge');
+    if (badge) badge.textContent = `🟢 Онлайн: ${presenceInfo.count || 0}`;
+    if (admin && adminTab === 'online') renderApp();
+  } catch { /* сервер онлайн недоступен */ }
+}
 
 function findAccount(username) {
   const needle = normUser(username);
@@ -445,6 +495,7 @@ function renderNav(admin) {
           </div>`}
         <div class="navbar__actions">
           <button class="sound-toggle" type="button" data-action="toggle-sound" title="Звуки интерфейса" aria-label="Звуки интерфейса">${soundOn ? '🔊' : '🔇'}</button>
+          <span id="onlineBadge" class="online-badge">🟢 Онлайн: ${presenceInfo.count || 0}</span>
           <span id="aiBadge" class="ai-badge">🤖 ИИ: проверяю…</span>
           ${currentUser
             ? `<span class="user-chip" title="Вы вошли">@${esc(currentUser.replace(/^@/, ''))}</span>
@@ -680,6 +731,7 @@ function renderSidebar() {
     ['overview', '◈', 'Обзор'],
     ['streamers', '🎤', 'Стримеры'],
     ['subscribers', '💳', 'Оплата'],
+    ['online', '🟢', 'Онлайн'],
     ['settings', '⚙', 'Настройки']
   ];
 
@@ -900,11 +952,36 @@ function renderSettingsTab() {
     </div>`;
 }
 
+function renderOnlineTab() {
+  const users = presenceInfo.users || [];
+  return `
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Онлайн сейчас</span>
+        <h2>Кто на сайте</h2>
+        <p>Счётчик видят все посетители, список — только админ.</p>
+      </div>
+      <span class="badge badge--green">🟢 ${presenceInfo.count || 0} онлайн</span>
+    </div>
+    <div class="card">
+      ${users.length
+        ? `<div class="admin-row"><div class="admin-row__main"><strong>Аккаунт</strong></div><div class="admin-row__main"><strong>Имя</strong></div><div class="admin-row__main"><strong>Был(а)</strong></div></div>
+           ${users.map((user) => `
+             <div class="admin-row">
+               <div class="admin-row__main"><strong>${esc(user.username || 'Гость')}</strong></div>
+               <div class="admin-row__main">${esc(user.name || '—')}</div>
+               <div class="admin-row__main">${esc(new Date(user.lastSeen).toLocaleTimeString('ru-RU'))}</div>
+             </div>`).join('')}`
+        : '<p class="muted">Пока никого нет в онлайне.</p>'}
+    </div>`;
+}
+
 function renderAdmin() {
   const content = {
     overview: renderOverview,
     streamers: renderStreamersTab,
     subscribers: renderSubscribersTab,
+    online: renderOnlineTab,
     settings: renderSettingsTab
   }[adminTab] || renderOverview;
 
@@ -1495,6 +1572,7 @@ document.addEventListener('click', async (event) => {
     case 'admin-tab':
       adminTab = el.dataset.tab || 'overview';
       renderApp();
+      if (adminTab === 'online') presenceRefresh();
       break;
 
     case 'logout':
@@ -1598,6 +1676,7 @@ document.addEventListener('submit', async (event) => {
       sessionStorage.setItem(AUTH_KEY, '1');
       adminTab = 'overview';
       renderApp();
+      presenceRefresh();
       toast('Добро пожаловать в админку');
     } else {
       toast('Неверный пароль', 'err');
@@ -1711,6 +1790,13 @@ async function bootstrap() {
   // Первый запуск: сохраняем состояние на сервере, чтобы мониторинг видел стримеров.
   if (location.protocol === 'http:' && !hasRemote) saveState();
   aiAuditState();
+  presencePing();
+  presenceRefresh();
+  setInterval(() => {
+    presencePing();
+    presenceRefresh();
+  }, 20000);
+  window.addEventListener('beforeunload', () => presencePing(true));
 }
 
 bootstrap();
